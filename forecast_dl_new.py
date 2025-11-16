@@ -92,9 +92,9 @@ with st.sidebar:
         "Model DL",
         [
             "LSTM",
-            "BiLSTM",
+            "BiLSTM (Good!)",
             "GRU",
-            "BiGRU",
+            "BiGRU (Good!)",
         ],
     )
 
@@ -274,3 +274,4 @@ st.download_button(
     "forecast_monthly_dl.csv",
     "text/csv",
 )
+
