@@ -80,7 +80,7 @@ st.subheader("Kerja Prakter Industri - 23524032 - 23524037")
 
 with st.sidebar:
     st.header("⚙️ Pengaturan Data")
-    source = st.radio("Sumber data", ["Upload CSV", "Contoh"], index=1)
+    source = st.radio("Sumber data", ["Upload CSV", "Generate Sample Dataset"], index=1)
     date_col = st.text_input("Kolom tanggal (bulanan)", "Posting Date")
     y_col = st.text_input("Kolom target", "Quantity")
 
@@ -274,4 +274,5 @@ st.download_button(
     "forecast_monthly_dl.csv",
     "text/csv",
 )
+
 
