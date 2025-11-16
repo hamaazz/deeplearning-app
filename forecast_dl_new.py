@@ -76,6 +76,7 @@ def preprocess_series_monthly(series):
 # ================== UI ================== #
 st.set_page_config(page_title="Monthly DL Forecasting", layout="wide")
 st.title("📈 Deep Learning Forecasting Bulanan (LSTM / BiLSTM / GRU / BiGRU)")
+st.subheader("Kerja Prakter Industri - 23524032 - 23524037")
 
 with st.sidebar:
     st.header("⚙️ Pengaturan Data")
