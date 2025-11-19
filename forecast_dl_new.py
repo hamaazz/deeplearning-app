@@ -86,15 +86,25 @@ with st.sidebar:
 
     test_size = st.slider("Proporsi Test", 0.1, 0.4, 0.2)
     window = st.slider("Window Size (lookback, bulan)", 3, 24, 12)
-    horizon = st.number_input("Horizon Forecast (bulan)", 1, 36, 12)
+
+    # ========== PATCH: Horizon Forecast dibatasi 3,6,9,12 ========= #
+    horizon = st.sidebar.slider(
+        "Horizon Forecast (bulan)",
+        min_value=3,
+        max_value=12,
+        step=3,
+        value=3,
+        help="Pilih horizon prediksi bulanan (3, 6, 9, 12 bulan)"
+    )
+    # =============================================================== #
 
     model_name = st.selectbox(
         "Model DL",
         [
             "LSTM",
-            "BiLSTM (Good!)",
+            "BiLSTM (GOOD)",
             "GRU",
-            "BiGRU (Good!)",
+            "BiGRU (GOOD)",
         ],
     )
 
@@ -117,7 +127,6 @@ if date_col not in df_raw.columns or y_col not in df_raw.columns:
 df = ensure_datetime(df_raw, date_col).sort_values(date_col)
 df = df[[date_col, y_col]].rename(columns={date_col: "date", y_col: "y"})
 
-# pastikan index bulanan (M)
 df = df.set_index("date").asfreq("M")
 df["y"] = df["y"].interpolate()
 
@@ -127,6 +136,14 @@ st.plotly_chart(
     px.line(df.reset_index(), x="date", y="y", title="Time Series Bulanan"),
     use_container_width=True,
 )
+
+
+# ============ EXECUTE BUTTON SEBELUM PREPROCESSING ============ #
+run_process = st.button("🚀 EXECUTE FORECASTING")
+
+if not run_process:
+    st.info("Klik tombol **EXECUTE FORECASTING** di atas untuk mulai preprocessing dan training model.")
+    st.stop()
 
 if len(df) <= window + 5:
     st.error("Data terlalu pendek untuk window size tersebut. Kurangi window size atau gunakan data lebih panjang.")
@@ -141,10 +158,8 @@ y_test = test_df["y"].values.reshape(-1, 1)
 st.markdown("### 2) Preprocessing & Pembuatan Sequence")
 
 scaled_all, scaler = preprocess_series_monthly(df["y"])
-
 X_all, y_all = create_sequences(scaled_all, window)
 
-# Sesuaikan dengan panjang test
 n_test = len(y_test)
 X_train = X_all[:-n_test]
 y_train_seq = y_all[:-n_test]
@@ -163,13 +178,10 @@ model = Sequential()
 
 if model_name == "LSTM":
     model.add(LSTM(64, return_sequences=False, input_shape=(window, 1)))
-
 elif model_name == "BiLSTM":
     model.add(Bidirectional(LSTM(64, return_sequences=False), input_shape=(window, 1)))
-
 elif model_name == "GRU":
     model.add(GRU(64, return_sequences=False, input_shape=(window, 1)))
-
 elif model_name == "BiGRU":
     model.add(Bidirectional(GRU(64, return_sequences=False), input_shape=(window, 1)))
 
@@ -191,17 +203,19 @@ with st.spinner("Training model ..."):
 st.success("✅ Training selesai!")
 
 # ================== Prediction on Test ================== #
+st.markdown("### 4) Evaluasi Model (Data Test)")
+
 pred_scaled = model.predict(X_test)
-# inverse scaling: scaled -> log -> original
+
+pred_scaled = np.asarray(pred_scaled).reshape(-1)
+pred_scaled = pred_scaled.reshape(-1, 1)
+
 pred_log = scaler.inverse_transform(pred_scaled)
 pred = np.expm1(pred_log).flatten()
 
 test_df = test_df.copy()
-test_df["pred"] = pred
+test_df["pred"] = np.round(pred).astype(int)
 test_df.index.name = "date"
-
-# ================== Metrics ================== #
-st.markdown("### 4) Evaluasi Model (Data Test)")
 
 mae = mean_absolute_error(test_df["y"], test_df["pred"])
 rmse = sqrt(mean_squared_error(test_df["y"], test_df["pred"]))
@@ -223,37 +237,35 @@ st.plotly_chart(
     use_container_width=True,
 )
 
-# ================== Forecast Forward (Monthly) ================== #
+# ================== Forecast Forward ================== #
 st.markdown("### 5) Forecast Bulanan ke Depan")
 
-# gunakan sequence terakhir dari data full (scaled_all)
 last_seq = scaled_all[-window:].reshape(1, window, 1)
 future_scaled = []
 
 for _ in range(horizon):
-    next_pred = model.predict(last_seq, verbose=0)[0][0]
+    next_pred = model.predict(last_seq, verbose=0)[0, 0]
     future_scaled.append(next_pred)
-    # geser window
     last_seq = np.append(last_seq[:, 1:, :], [[[next_pred]]], axis=1)
 
-# inverse transform
-future_log = scaler.inverse_transform(np.array(future_scaled).reshape(-1, 1))
+future_scaled = np.asarray(future_scaled).reshape(-1)
+future_scaled = future_scaled.reshape(-1, 1)
+
+future_log = scaler.inverse_transform(future_scaled)
 future = np.expm1(future_log).flatten()
+future = np.round(future).astype(int)
 
 future_index = pd.date_range(df.index[-1] + pd.offsets.MonthEnd(1), periods=horizon, freq="M")
 
-fcst_df = pd.DataFrame({"date": future_index, "forecast": future})
-fcst_df = fcst_df.set_index("date")
+fcst_df = pd.DataFrame({"date": future_index, "forecast": future}).set_index("date")
 
-# 🔧 BAGIAN INI YANG TADI BERMASALAH SUDAH DIUBAH
-# Gabungkan actual 24 bulan terakhir + forecast dalam satu dataframe dengan kolom sederhana
 plot_df = pd.concat(
     [
         df[["y"]].iloc[-24:].rename(columns={"y": "Actual"}),
         fcst_df.rename(columns={"forecast": "Forecast"}),
     ],
     axis=1,
-).reset_index()  # ini akan membuat kolom 'date', 'Actual', 'Forecast'
+).reset_index()
 
 st.plotly_chart(
     px.line(
@@ -268,11 +280,29 @@ st.plotly_chart(
 
 st.dataframe(fcst_df, use_container_width=True)
 
+# ================== KPI / SCORECARD TRIWULAN ================== #
+st.markdown("### ⭐ KPI Forecast (Agregasi Triwulanan)")
+
+fcst_df_q = fcst_df.copy()
+fcst_df_q["quarter"] = fcst_df_q.index.to_period("Q")
+
+kpi_df = fcst_df_q.groupby("quarter")["forecast"].sum().reset_index()
+kpi_df.rename(columns={"forecast": "Total Forecast"}, inplace=True)
+
+if not kpi_df.empty:
+    cols = st.columns(len(kpi_df))
+    for i, row in kpi_df.iterrows():
+        cols[i].metric(
+            label=f"Triwulan {row['quarter']}",
+            value=f"{int(row['Total Forecast']):,}"
+        )
+
+st.dataframe(kpi_df)
+
+# ================== Download ================== #
 st.download_button(
     "💾 Download Forecast CSV",
     fcst_df.reset_index().to_csv(index=False).encode("utf-8"),
     "forecast_monthly_dl.csv",
     "text/csv",
 )
-
-
