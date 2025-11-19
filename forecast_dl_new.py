@@ -220,24 +220,49 @@ future_log = scaler.inverse_transform(future_scaled)
 future = np.expm1(future_log).flatten()
 future = np.round(future).astype(int)
 
-future_index = pd.date_range(df.index[-1] + pd.offsets.MonthEnd(1), periods=horizon, freq="M")
-fcst_df = pd.DataFrame({"date": future_index, "forecast": future}).set_index("date")
+#future_index = pd.date_range(df.index[-1] + pd.offsets.MonthEnd(1), periods=horizon, freq="M")
+#fcst_df = pd.DataFrame({"date": future_index, "forecast": future}).set_index("date")
 
-st.plotly_chart(
-    px.line(
-        pd.concat(
-            [
-                df[["y"]].iloc[-24:].rename(columns={"y": "Actual"}),
-                fcst_df.rename(columns={"forecast": "Forecast"}),
-            ],
-            axis=1,
-        ).reset_index(),
-        x="date",
-        y=["Actual", "Forecast"],
-        title="Forecast Bulanan",
-    ),
-    use_container_width=True,
+future_index = pd.date_range(
+    start=df.index[-1] + pd.offsets.MonthBegin(1),
+    periods=horizon,
+    freq="MS"   # Month Start
 )
+
+fcst_df = pd.DataFrame(
+    {"date": future_index, "forecast": future}
+).set_index("date")
+
+plot_df = pd.concat(
+    [
+        df[["y"]].iloc[-24:].rename(columns={"y": "Actual"}),
+        fcst_df.rename(columns={"forecast": "Forecast"}),
+    ],
+    axis=1,
+).reset_index()
+
+fig = px.line(
+    plot_df,
+    x="date",
+    y=["Actual", "Forecast"],
+    title="Forecast Bulanan",
+    labels={"value": "Quantity", "variable": "Jenis"},
+)
+
+# Style garis
+fig.update_traces(
+    selector=dict(name="Actual"),
+    line=dict(color="#1f77b4", width=3, dash="solid")
+)
+
+fig.update_traces(
+    selector=dict(name="Forecast"),
+    line=dict(color="#ff0000", width=3, dash="dash")
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+
 
 st.dataframe(fcst_df)
 
@@ -262,3 +287,4 @@ st.download_button(
     "forecast_monthly_dl.csv",
     "text/csv",
 )
+
