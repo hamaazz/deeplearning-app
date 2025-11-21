@@ -70,12 +70,14 @@ st.subheader("Kerja Prakter Industri - 23524032 - 23524037")
 
 with st.sidebar:
     st.header("⚙️ Pengaturan Data")
-    source = st.radio("Sumber data", ["Upload CSV", "Generate Sample Dataset"], index=1)
+    source = st.radio("Sumber data", ["Upload CSV", "Generate Sample Dataset"], index=0)
     date_col = st.text_input("Kolom tanggal (bulanan)", "Posting Date")
     y_col = st.text_input("Kolom target", "Quantity")
 
-    test_size = st.slider("Proporsi Test", 0.1, 0.4, 0.2)
-    window = st.slider("Window Size (lookback, bulan)", 3, 24, 12)
+    test_size = 0.2
+    st.write(f"**Proporsi Test:** 80% Training — 20% Testing")
+    window = 12
+    st.write(f"**Window Size (Lookback):** {window} bulan")
 
     # Horizon dibatasi 3 / 6 / 9 / 12 bulan
     horizon = st.sidebar.slider(
@@ -272,5 +274,6 @@ st.download_button(
     "forecast_monthly_dl.csv",
     "text/csv",
 )
+
 
 
